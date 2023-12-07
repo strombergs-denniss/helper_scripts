@@ -3,11 +3,12 @@
 import re
 import os
 import json
+import csv
 
 i18nPath = 'i18n/'
 searchPaths = [
-    # 'packages/',
-    # 'src/'
+    #'packages/',
+    #'src/'
 ]
 
 totalMatches = []
@@ -36,7 +37,7 @@ def extractTranslatableStrings(content):
                 i += 1
 
                 if content[i] == '\\' and content[i + 1] == quote:
-                    result += content[i] +  content[i + 1]
+                    result += content[i + 1]
                     i += 2
 
                 if i >= len(content):
@@ -83,10 +84,94 @@ def scan():
                 fileContent = file.read()
 
                 for match in extractTranslatableStrings(fileContent):
-                    if match.decode('utf-8') not in translationMap:
+                    if match not in translationMap:
                         totalMatches.append(match)
 
     return totalMatches
 
-for match in scan():
-    print(match)
+# for match in scan():
+    # print(match)
+
+def compileFullTranslationMap():
+    translationMap = {}
+
+    for subdir, dirs, files in os.walk(i18nPath):
+        for fileName in files:
+            if ".json" not in fileName:
+                continue
+
+            path = os.path.join(subdir, fileName)
+            file = open(path)
+            data = json.load(file)
+            lang = fileName.replace('.json', '')
+            translationMap[lang] = {}
+
+            for key in data:
+                value = data[key]
+
+                if not value or key == value:
+                    continue
+
+                if key not in translationMap[lang]:
+                    translationMap[lang][key] = value.encode('utf-8')
+
+    return translationMap
+
+
+def getExists(translationMap, value):
+    exists = {}
+
+    for key in translationMap:
+        map = translationMap[key]
+
+        if value not in map:
+            exists[key] = False
+        else:
+            exists[key] = True
+
+    return exists
+
+def scanSmarter(translationMap):
+    exists = {}
+
+    for searchPath in searchPaths:
+        for subdir, dirs, files in os.walk(searchPath):
+            for fileName in files:
+                path = os.path.join(subdir, fileName)
+                file = open(path)
+                fileContent = file.read()
+                strings = extractTranslatableStrings(fileContent)
+
+                if len(strings):
+                    for match in strings:
+                        if match not in exists:
+                            total = True
+                            val = getExists(translationMap, match)
+
+                            for k in val:
+                                v = val[k]
+                                total = total and v
+
+                            if not total:
+                                exists[match] = val
+
+    return exists
+
+translationMap = compileFullTranslationMap()
+exists = scanSmarter(translationMap)
+
+with open('translations.csv', 'w') as csvfile:
+    writer = csv.writer(csvfile, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL)
+    writer.writerow(['en_GB'] + translationMap.keys())
+
+    for k in exists:
+        v = exists[k]
+        out = [k]
+
+        for lang in v:
+            if k in translationMap[lang]:
+                out.append(translationMap[lang][k])
+            else:
+                out.append('MISSING')
+
+        writer.writerow(out)
