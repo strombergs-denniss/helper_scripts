@@ -5,10 +5,10 @@ import os
 import json
 import csv
 
-i18nPath = 'i18n/'
+i18nPath = '../scandipwa/i18n/'
 searchPaths = [
-    #'packages/',
-    #'src/'
+    '../scandipwa/src/',
+    '../scandipwa/packages/',
 ]
 
 totalMatches = []
@@ -153,7 +153,7 @@ def scanSmarter(translationMap):
                                 total = total and v
 
                             if not total:
-                                exists[match] = val
+                                exists[match] = [val, path]
 
     return exists
 
@@ -162,16 +162,18 @@ exists = scanSmarter(translationMap)
 
 with open('translations.csv', 'w') as csvfile:
     writer = csv.writer(csvfile, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL)
-    writer.writerow(['en_GB'] + translationMap.keys())
+    writer.writerow(['en_GB'] + translationMap.keys() + ['location'])
 
     for k in exists:
         v = exists[k]
         out = [k]
 
-        for lang in v:
+        for lang in v[0]:
             if k in translationMap[lang]:
                 out.append(translationMap[lang][k])
             else:
                 out.append('MISSING')
+
+        out.append(v[1].replace('../scandipwa/', ''))
 
         writer.writerow(out)
